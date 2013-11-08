@@ -1,7 +1,55 @@
+<#
+  .SYNOPSIS
+  Runs the MoNo app.
+  
+  .PARAMETER file
+  Indicates a JavaScript file to execute.
+  
+  .PARAMETER arguments
+  The argument list of the file to execute.
+  
+  .PARAMETER shell
+  Option --shell of the mongo shell.
+  
+  .PARAMETER nodb
+  Option --nodb of the mongo shell.
+  
+  .PARAMETER hostname
+  Option --host of the mongo shell.
+  
+  .PARAMETER port
+  Option --port of the mongo shell.
+  
+  .PARAMETER ipv6
+  Option --ipv6 of the mongo shell.
+  
+  .PARAMETER username
+  Option --username of the mongo shell.
+  
+  .PARAMETER password
+  Option --password of the mongo shell.
+  
+  .EXAMPLE
+  mono -file sum.js -arguments @(1, 2, 3)
+  
+  Runs the file sum.js passing the arguments 1, 2 and 3 and exits.
+  
+  .EXAMPLE
+  mono -shell -file sum.js -arguments @(1, 2, 3)
+  
+  Runs the file sum.js passing the arguments 1, 2 and 3 and shells.
+#>
+
 param(
   [String] $file,
   [String[]] $arguments,
-  [Switch][Bool] $shell
+  [Switch][Bool] $shell,
+  [Switch][Bool] $nodb,
+  [String] $hostname,
+  [String] $port,
+  [String] $ipv6,
+  [String] $username,
+  [String] $password
 )
 
 [String] $MONGO_BIN = "D:\opt\mongodb\pkg01\soft\bin"
@@ -11,7 +59,8 @@ param(
 
 [String] $process = "void(process = { argv: [], env: {} });"
 [String] $globals = ""
-[String] $commandLine = "$MONGO"
+
+[String[]] $commandLine = @()
 
 #(1) create process object
 foreach ($a in $arguments) {
@@ -20,19 +69,57 @@ foreach ($a in $arguments) {
   }
 }
 
-gci env: |
-ForEach {
-  $process += " void(process.env['$($_.name)'] = '$($_.value)');"
+foreach ($i in (gci env:)) {
+  $process += " void(process.env['$($i.name)'] = '$($i.value)');"
 }
 
 $process = $process -replace "\\", "\\"
 
+#(2) create common command line
+if ($file -eq "" -or $shell) {
+  $commandLine += "--shell"
+}
+
+if ($nodb) {
+  $commandLine += " --nodb"
+} else {
+  if ($hostname -ne "") {
+    $commandLine += "--host " + $hostname
+  }
+  
+  if ($port -ne "") {
+    $commandLine += "--port " + $port
+  }
+  
+  if ($username -ne "") {
+    $commandLine += "--username " + $username
+  }
+  
+  if ($password -ne "") {
+    $commandLine += "--password " + $password
+  }
+  
+  if ($ipv6 -ne "") {
+    $commandLine += "--ipv6"
+  }
+}
+
 #(3) invoke mongo
 if ($file -eq "") {
-  & $MONGO --shell --nodb --eval ($process + $globals) $MONO_JS
+  $commandLine += "--eval `"$process`""
+  $commandLine += $MONO_JS
 } else  {
-  $globals += " void(__filename = `"$($(dir $file).FullName)`");"
-  $globals += " void(__dirname = `"$($(dir $file).DirectoryName)`");"
-  
-  & $MONGO --nodb --eval $process $MONO_JS $file
+  if (-not (Test-Path -PathType Leaf $file)) {
+    Write-Error "'$file' doesn't exist."
+    Exit 1
+  }
+
+  $globals += " var __filename = '$($(dir $file).FullName)';"
+  $globals += " var __dirname = '$($(dir $file).DirectoryName)';"
+  $globals = $globals -replace "\\", "\\"
+  $commandLine += "--eval `"$process $globals`""
+  $commandLine += $MONO_JS
+  $commandLine += $file
 }
+
+Start-Process -FilePath $MONGO -ArgumentList $commandLine -NoNewWindow -Wait
