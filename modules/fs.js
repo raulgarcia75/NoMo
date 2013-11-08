@@ -246,6 +246,12 @@ function statSync(path) {
   return new Stats(path);
 }
 
+Object.defineProperty(stat, "getSplitPath", {
+  enumerable: false,
+  writable: false,
+  value: getSplitPath
+});
+
 //////////
 // help //
 //////////

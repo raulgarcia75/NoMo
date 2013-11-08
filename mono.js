@@ -12,7 +12,7 @@ function require(path) {
     } catch (e) {
       return false;
     }
-  }	
+  }
 
   //Returns the module id from its path.
   function getModuleId(path) {
@@ -21,7 +21,7 @@ function require(path) {
   
   //Returns the file path
   function getFilePath(path) {
-    var BASEDIR = "./../modules";
+    var BASEDIR = require.path + "/modules";
     var filePath = BASEDIR;
     
     //(1) get file path
@@ -80,6 +80,14 @@ function require(path) {
   //(2) return
   return mod;
 }
+
+Object.defineProperty(require, "path", {
+  enumerable: false,
+  writable: false,
+  value: process.__requirePath__
+});
+
+delete process.__requirePath__;
 
 /////////////
 // process //

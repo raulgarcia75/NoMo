@@ -59,6 +59,7 @@ param(
 
 [String] $process = "void(process = { argv: [], env: {} });"
 [String] $globals = ""
+[String] $requirePath = ""
 
 [String[]] $commandLine = @()
 
@@ -104,9 +105,12 @@ if ($nodb) {
   }
 }
 
-#(3) invoke mongo
+#(3) create requirePath
+$requirePath = $MONO_BASE -replace "\\", "\\"
+
+#(4) invoke mongo
 if ($file -eq "") {
-  $commandLine += "--eval `"$process`""
+  $commandLine += "--eval `"$process void(process.__requirePath__ = '$requirePath');`""
   $commandLine += $MONO_JS
 } else  {
   if (-not (Test-Path -PathType Leaf $file)) {
@@ -117,7 +121,7 @@ if ($file -eq "") {
   $globals += " var __filename = '$($(dir $file).FullName)';"
   $globals += " var __dirname = '$($(dir $file).DirectoryName)';"
   $globals = $globals -replace "\\", "\\"
-  $commandLine += "--eval `"$process $globals`""
+  $commandLine += "--eval `"$process $globals void(process.__requirePath__ = '$requirePath');`""
   $commandLine += $MONO_JS
   $commandLine += $file
 }
