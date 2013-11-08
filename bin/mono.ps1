@@ -1,22 +1,38 @@
 param(
   [String] $file,
-  [String[]] $arguments
+  [String[]] $arguments,
+  [Switch][Bool] $shell
 )
 
 [String] $MONGO_BIN = "D:\opt\mongodb\pkg01\soft\bin"
-[String] $mongo = $MONGO_BIN + "\mongo.exe"
-[String] $jsargs = "void(process = { argv: [] });"
+[String] $MONGO = $MONGO_BIN + "\mongo.exe"
+[String] $MONO_BASE = Split-Path -Parent (Split-Path -Parent -Path $MyInvocation.MyCommand.Definition)
+[String] $MONO_JS = $MONO_BASE + "\mono.js"
 
-#(1) create jsargs
+[String] $process = "void(process = { argv: [], env: {} });"
+[String] $globals = ""
+[String] $commandLine = "$MONGO"
+
+#(1) create process object
 foreach ($a in $arguments) {
   if ($a -ne $null) {
-    $jsargs += " void(process.argv.push('$a'));"
+    $process += " void(process.argv.push('$a'));"
   }
 }
 
-#(2) invoke mongo
+gci env: |
+ForEach {
+  $process += " void(process.env['$($_.name)'] = '$($_.value)');"
+}
+
+$process = $process -replace "\\", "\\"
+
+#(3) invoke mongo
 if ($file -eq "") {
-  & $mongo --shell --eval $jsargs --nodb ..\mono.js
+  & $MONGO --shell --nodb --eval ($process + $globals) $MONO_JS
 } else  {
-  & $mongo --shell --nodb --eval "void($jsargs)" ..\mono.js $file
+  $globals += " void(__filename = `"$($(dir $file).FullName)`");"
+  $globals += " void(__dirname = `"$($(dir $file).DirectoryName)`");"
+  
+  & $MONGO --nodb --eval $process $MONO_JS $file
 }
